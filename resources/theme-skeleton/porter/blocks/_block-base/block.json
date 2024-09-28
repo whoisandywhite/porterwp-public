@@ -1,0 +1,13 @@
+{
+    "name": "acf/dummy-name",
+    "title": "Dummy_Title",
+    "description": "A custom Dummy_Title block.",
+    "style": "dummy-name-block-css",
+    "script": ["dummy-name-block-js"],
+    "category": "baseline-dummyCategory",
+    "apiVersion": 2,
+    "acf": {
+        "mode": "preview",
+        "renderCallback": "porterBlockDummyNamespace\\pre_render"
+    }
+}

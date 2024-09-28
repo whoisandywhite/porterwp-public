@@ -1,0 +1,39 @@
+{
+	"version" : "1.0.0",
+	"settings" : {
+		"theme-support" : {},
+		"admin" : {
+			"editor_styles" : {
+				"admin_css" : {
+					"src" : "./assets/dist/css/editor.min.css"
+				}
+			}
+		},
+		"public" : {
+			"scripts" : {
+				"main" : {
+					"src" : "./assets/dist/js/app.js",
+					"deps" : [],
+					"args" : {
+						"in_footer" : true
+					}
+				}
+			},
+			"styles" : {
+				"main" : {
+					"src" : "./assets/dist/css/app.min.css"
+				}
+			}
+		}
+	}
+}
+
+
+
+
+
+
+
+
+
+

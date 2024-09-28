@@ -1,0 +1,30 @@
+{
+  "name": "baseline",
+  "version": "1.0.0",
+  "description": "baseline WordPress theme for PorterWP by whoisAndyWhite",
+  "main": "assets/src/scss/app.scss",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/whoisandywhite/baseline.git"
+  },
+  "author": "@whoisandywhite",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/whoisandywhite/baseline/issues"
+  },
+  "homepage": "https://github.com/whoisandywhite/baseline#readme",
+  "devDependencies": {
+    "chokidar": "^4.0.0",
+    "gulp": "^5.0.0",
+    "gulp-autoprefixer": "^9.0.0",
+    "gulp-dart-sass": "^1.1.0",
+    "gulp-rename": "^2.0.0",
+    "gulp-terser": "^2.0.1",
+    "gulp-uglifycss": "^1.1.0",
+    "lodash": "^4.17.21"
+  },
+  "type": "module"
+}

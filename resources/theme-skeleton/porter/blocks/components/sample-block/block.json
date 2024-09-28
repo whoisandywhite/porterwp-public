@@ -1,0 +1,13 @@
+{
+    "name": "acf/sample-block",
+    "title": "Sample block",
+    "description": "A custom Sample block block.",
+    "style": "sample-block-block-css",
+    "script": ["sample-block-block-js"],
+    "category": "baseline-components",
+    "apiVersion": 2,
+    "acf": {
+        "mode": "preview",
+        "renderCallback": "porterBlockSampleblock\\pre_render"
+    }
+}

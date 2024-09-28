@@ -1,0 +1,25 @@
+{
+	"version" : "1.0.0",
+	"blocks" : {
+		"settings" : {
+			"folders" : [
+				"/components"
+			]
+		},
+		"styles" : {
+			"core/image" : {
+				"Example Style" : {}
+			}
+		}
+	}
+}
+
+
+
+
+
+
+
+
+
+
