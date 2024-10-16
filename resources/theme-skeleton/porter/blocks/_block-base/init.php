@@ -23,10 +23,9 @@ function pre_render( $block, $content, $is_preview, $post_id, $wp_block, $contex
 	// Set block args
 	$attrs = [];
 	$args = [
-		'is_preview' => $is_preview,
-		'class' => get_block_wrapper_attributes( $attrs ),
 		'anchor' => helpers()->anchor( $block ),
 	];
+	$args['class'] = $is_preview ? helpers()->build_block_class_attrs($attrs) : get_block_wrapper_attributes( $attrs );
 	
 	// Render the template
 	echo \get_template_part( helpers()->path().'/template', '', $args);

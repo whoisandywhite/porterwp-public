@@ -31,7 +31,7 @@ function compileSass(done) {
     }
 
     return gulp.src(`${srcDir}/**/*.scss`, { sourcemaps: true })
-        .pipe(sass.sync({ outputStyle: 'compressed' }).on('error', sass.logError))
+        .pipe(sass.sync({ outputStyle: 'compressed', silenceDeprecations: ['legacy-js-api'] }).on('error', sass.logError))
         .pipe(autoprefixer({ cascade: false }))
         .pipe(uglifycss({ 'maxLineLen': 80, 'uglyComments': true }))
         .pipe(rename({ suffix: '.min' }))
@@ -48,7 +48,7 @@ function compileBlocks(done) {
     }
 
     return gulp.src(`${srcDir}/**/scss/*.scss`, { sourcemaps: true })
-        .pipe(sass.sync({ outputStyle: 'compressed' }).on('error', sass.logError))
+        .pipe(sass.sync({ outputStyle: 'compressed', silenceDeprecations: ['legacy-js-api'] }).on('error', sass.logError))
         .pipe(autoprefixer({ cascade: false }))
         .pipe(rename(function (file) {
             file.dirname = file.dirname.replace('scss', 'css');
@@ -67,7 +67,7 @@ function compileBlockStyles(done) {
     }
 
     return gulp.src(`${srcDir}/*.scss`, { sourcemaps: true })
-        .pipe(sass.sync({ outputStyle: 'compressed' }).on('error', sass.logError))
+        .pipe(sass.sync({ outputStyle: 'compressed', silenceDeprecations: ['legacy-js-api'] }).on('error', sass.logError))
         .pipe(autoprefixer({ cascade: false }))
         .pipe(uglifycss({ 'maxLineLen': 80, 'uglyComments': true }))
         .pipe(rename(function (path) {
@@ -87,7 +87,7 @@ function compileCoreBlockStyles(done) {
     }
 
     return gulp.src(`${srcDir}/*.scss`, { sourcemaps: true })
-        .pipe(sass.sync({ outputStyle: 'compressed' }).on('error', sass.logError))
+        .pipe(sass.sync({ outputStyle: 'compressed', silenceDeprecations: ['legacy-js-api'] }).on('error', sass.logError))
         .pipe(autoprefixer({ cascade: false }))
         .pipe(uglifycss({ 'maxLineLen': 80, 'uglyComments': true }))
         .pipe(rename(function (path) {
@@ -107,7 +107,7 @@ function compileVariationStyles(done) {
     }
 
     return gulp.src(`${srcDir}/**/scss/*.scss`, { sourcemaps: true })
-        .pipe(sass.sync({ outputStyle: 'compressed' }).on('error', sass.logError))
+        .pipe(sass.sync({ outputStyle: 'compressed', silenceDeprecations: ['legacy-js-api'] }).on('error', sass.logError))
         .pipe(autoprefixer({ cascade: false }))
         .pipe(rename(function (file) {
             file.dirname = file.dirname.replace('scss', 'css');
