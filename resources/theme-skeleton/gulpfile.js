@@ -1,217 +1,383 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import autoprefixer from 'autoprefixer';
+import cssnano from 'cssnano';
 import gulp from 'gulp';
-import autoprefixer from 'gulp-autoprefixer';
-import sass from 'gulp-dart-sass';
+import postcss from 'gulp-postcss';
 import rename from 'gulp-rename';
-import uglifycss from 'gulp-uglifycss';
+import gulpSass from 'gulp-sass';
 import terser from 'gulp-terser';
-import { exec } from 'child_process';
-import path from 'path';
-import fs from 'fs';
-import _ from 'lodash';
+import * as dartSass from 'sass';
+import { generateColorScss } from './assets/build-scripts/extract-colors.js';
 
-// Function to extract colors from scripts
-function extractColors(done) {
-    exec('node ./assets/build-scripts/extract-colors.js', (err, stdout, stderr) => {
-        if (err) {
-            console.error(`exec error: ${err}`);
-            return done(err);
-        }
-        console.log(stdout);
-        console.error(stderr);
-        done();
-    });
+const sass = gulpSass(dartSass);
+const themeRoot = path.dirname(fileURLToPath(import.meta.url));
+const production = process.argv.includes('--production') || process.env.NODE_ENV === 'production';
+
+const paths = {
+    globalScss: 'assets/src/scss',
+    globalJs: 'assets/src/js',
+    blockRoot: 'porter/blocks',
+    blockStyles: 'porter/inc/block/styles',
+    coreBlockStyles: 'porter/inc/block/core/styles',
+    blockVariations: 'porter/inc/block/variations',
+};
+
+function fromTheme(...segments) {
+    return path.join(themeRoot, ...segments);
 }
 
-// Function to compile SASS files into compressed CSS
-function compileSass(done) {
-    const srcDir = 'assets/src/scss';
-    if (!fs.existsSync(srcDir)) {
-        console.log(`Source directory "${srcDir}" does not exist. Skipping task.`);
-        return done();
+function sourceOptions(base) {
+    return {
+        allowEmpty: true,
+        base: fromTheme(base),
+        cwd: themeRoot,
+        sourcemaps: !production,
+    };
+}
+
+function destinationOptions() {
+    return production ? {} : { sourcemaps: '.' };
+}
+
+function compileCss(stream) {
+    return stream
+        .pipe(sass.sync({ style: 'compressed' }).on('error', sass.logError))
+        .pipe(postcss([
+            autoprefixer(),
+            cssnano({ preset: ['default', { discardComments: { removeAll: true } }] }),
+        ]));
+}
+
+function renameScssDirectory(file) {
+    file.dirname = file.dirname
+        .split(path.sep)
+        .map((segment) => (segment === 'scss' ? 'css' : segment))
+        .join(path.sep);
+    file.extname = '.css';
+}
+
+function readJson(relativePath) {
+    const filePath = fromTheme(relativePath);
+
+    try {
+        return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    } catch (error) {
+        throw new Error(`Could not read valid JSON from ${relativePath}: ${error.message}`);
+    }
+}
+
+function styleSlug(title) {
+    const slug = title
+        .toLowerCase()
+        .replaceAll(' ', '-')
+        .replace(/[\\/:*?"<>|]/g, '');
+
+    if (!/^[a-z0-9][a-z0-9-]*$/.test(slug)) {
+        throw new Error(`Invalid block style title: ${title}`);
     }
 
-    return gulp.src(`${srcDir}/**/*.scss`, { sourcemaps: true })
-        .pipe(sass.sync({ outputStyle: 'compressed', silenceDeprecations: ['legacy-js-api'] }).on('error', sass.logError))
-        .pipe(autoprefixer({ cascade: false }))
-        .pipe(uglifycss({ 'maxLineLen': 80, 'uglyComments': true }))
+    return slug;
+}
+
+function removeMatchingFiles(directory, predicate) {
+    if (!fs.existsSync(directory)) {
+        return;
+    }
+
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+        const filePath = path.join(directory, entry.name);
+
+        if (entry.isDirectory()) {
+            removeMatchingFiles(filePath, predicate);
+        } else if (entry.isFile() && predicate(filePath)) {
+            fs.rmSync(filePath);
+        }
+    }
+}
+
+function findFiles(directory, extension) {
+    if (!fs.existsSync(directory)) {
+        return [];
+    }
+
+    return fs.readdirSync(directory, { withFileTypes: true })
+        .flatMap((entry) => {
+            const filePath = path.join(directory, entry.name);
+
+            if (entry.isDirectory()) {
+                return findFiles(filePath, extension);
+            }
+
+            return entry.isFile() && filePath.endsWith(extension) ? [filePath] : [];
+        });
+}
+
+function removeGeneratedAssets() {
+    fs.rmSync(fromTheme('assets/dist'), { force: true, recursive: true });
+
+    const mappedFiles = [
+        ...findFiles(fromTheme(paths.blockRoot), '.scss').map((filePath) => (
+            filePath.replace(`${path.sep}scss${path.sep}`, `${path.sep}css${path.sep}`).replace(/\.scss$/, '.css')
+        )),
+        ...findFiles(fromTheme(paths.blockVariations), '.scss').map((filePath) => (
+            filePath.replace(`${path.sep}scss${path.sep}`, `${path.sep}css${path.sep}`).replace(/\.scss$/, '.css')
+        )),
+        ...findFiles(fromTheme(paths.blockStyles, 'scss'), '.scss').map((filePath) => (
+            path.join(fromTheme(paths.blockStyles, 'css'), path.basename(filePath, '.scss') + '.css')
+        )),
+        ...findFiles(fromTheme(paths.coreBlockStyles, 'scss'), '.scss').map((filePath) => (
+            path.join(fromTheme(paths.coreBlockStyles, 'css'), path.basename(filePath, '.scss') + '.css')
+        )),
+    ];
+
+    for (const filePath of mappedFiles) {
+        fs.rmSync(filePath, { force: true });
+        fs.rmSync(`${filePath}.map`, { force: true });
+    }
+}
+
+export async function extractColors() {
+    generateColorScss();
+}
+
+export function compileSass() {
+    if (!fs.existsSync(fromTheme(paths.globalScss))) {
+        return Promise.resolve();
+    }
+
+    const source = gulp.src(
+        [
+            `${paths.globalScss}/**/*.scss`,
+            `!${paths.globalScss}/**/_*.scss`,
+        ],
+        sourceOptions(paths.globalScss),
+    );
+
+    return compileCss(source)
         .pipe(rename({ suffix: '.min' }))
-        .pipe(gulp.dest('assets/dist/css', { sourcemaps: '.' }))
-        .on('end', done);
+        .pipe(gulp.dest(fromTheme('assets/dist/css'), destinationOptions()));
 }
 
-// Function to compile block-specific SASS files into CSS
-function compileBlocks(done) {
-    const srcDir = 'porter/blocks';
-    if (!fs.existsSync(srcDir)) {
-        console.log(`Source directory "${srcDir}" does not exist. Skipping task.`);
-        return done();
+export function compileBlocks() {
+    if (!fs.existsSync(fromTheme(paths.blockRoot))) {
+        return Promise.resolve();
     }
 
-    return gulp.src(`${srcDir}/**/scss/*.scss`, { sourcemaps: true })
-        .pipe(sass.sync({ outputStyle: 'compressed', silenceDeprecations: ['legacy-js-api'] }).on('error', sass.logError))
-        .pipe(autoprefixer({ cascade: false }))
-        .pipe(rename(function (file) {
-            file.dirname = file.dirname.replace('scss', 'css');
-            file.extname = '.css';
-        }))
-        .pipe(gulp.dest('porter/blocks/', { sourcemaps: '.' }))
-        .on('end', done);
+    const source = gulp.src(
+        `${paths.blockRoot}/**/scss/*.scss`,
+        sourceOptions(paths.blockRoot),
+    );
+
+    return compileCss(source)
+        .pipe(rename(renameScssDirectory))
+        .pipe(gulp.dest(fromTheme(paths.blockRoot), destinationOptions()));
 }
 
-// Function to compile SCSS files for block styles into CSS
-function compileBlockStyles(done) {
-    const srcDir = 'porter/inc/block/styles/scss';
-    if (!fs.existsSync(srcDir)) {
-        console.log(`Source directory "${srcDir}" does not exist. Skipping task.`);
-        return done();
+export function compileBlockStyles() {
+    const sourceDir = `${paths.blockStyles}/scss`;
+
+    if (!fs.existsSync(fromTheme(sourceDir))) {
+        return Promise.resolve();
     }
 
-    return gulp.src(`${srcDir}/*.scss`, { sourcemaps: true })
-        .pipe(sass.sync({ outputStyle: 'compressed', silenceDeprecations: ['legacy-js-api'] }).on('error', sass.logError))
-        .pipe(autoprefixer({ cascade: false }))
-        .pipe(uglifycss({ 'maxLineLen': 80, 'uglyComments': true }))
-        .pipe(rename(function (path) {
-            path.dirname = "css";
-            path.extname = '.css';
-        }))
-        .pipe(gulp.dest('porter/inc/block/styles/', { sourcemaps: '.' }))
-        .on('end', done);
+    const source = gulp.src(`${sourceDir}/*.scss`, sourceOptions(sourceDir));
+
+    return compileCss(source)
+        .pipe(gulp.dest(fromTheme(paths.blockStyles, 'css'), destinationOptions()));
 }
 
-// Function to compile SCSS files for core block styles into CSS
-function compileCoreBlockStyles(done) {
-    const srcDir = 'porter/inc/block/core/styles/scss';
-    if (!fs.existsSync(srcDir)) {
-        console.log(`Source directory "${srcDir}" does not exist. Skipping task.`);
-        return done();
+export function compileCoreBlockStyles() {
+    const sourceDir = `${paths.coreBlockStyles}/scss`;
+
+    if (!fs.existsSync(fromTheme(sourceDir))) {
+        return Promise.resolve();
     }
 
-    return gulp.src(`${srcDir}/*.scss`, { sourcemaps: true })
-        .pipe(sass.sync({ outputStyle: 'compressed', silenceDeprecations: ['legacy-js-api'] }).on('error', sass.logError))
-        .pipe(autoprefixer({ cascade: false }))
-        .pipe(uglifycss({ 'maxLineLen': 80, 'uglyComments': true }))
-        .pipe(rename(function (path) {
-            path.dirname = "css";
-            path.extname = '.css';
-        }))
-        .pipe(gulp.dest('porter/inc/block/core/styles/', { sourcemaps: '.' }))
-        .on('end', done);
+    const source = gulp.src(`${sourceDir}/*.scss`, sourceOptions(sourceDir));
+
+    return compileCss(source)
+        .pipe(gulp.dest(fromTheme(paths.coreBlockStyles, 'css'), destinationOptions()));
 }
 
-// Function to compile SCSS files for block variations into CSS
-function compileVariationStyles(done) {
-    const srcDir = 'porter/inc/block/variations';
-    if (!fs.existsSync(srcDir)) {
-        console.log(`Source directory "${srcDir}" does not exist. Skipping task.`);
-        return done();
+export function compileVariationStyles() {
+    if (!fs.existsSync(fromTheme(paths.blockVariations))) {
+        return Promise.resolve();
     }
 
-    return gulp.src(`${srcDir}/**/scss/*.scss`, { sourcemaps: true })
-        .pipe(sass.sync({ outputStyle: 'compressed', silenceDeprecations: ['legacy-js-api'] }).on('error', sass.logError))
-        .pipe(autoprefixer({ cascade: false }))
-        .pipe(rename(function (file) {
-            file.dirname = file.dirname.replace('scss', 'css');
-            file.extname = '.css';
-        }))
-        .pipe(gulp.dest(srcDir, { sourcemaps: '.' }))
-        .on('end', done);
+    const source = gulp.src(
+        `${paths.blockVariations}/**/scss/*.scss`,
+        sourceOptions(paths.blockVariations),
+    );
+
+    return compileCss(source)
+        .pipe(rename(renameScssDirectory))
+        .pipe(gulp.dest(fromTheme(paths.blockVariations), destinationOptions()));
 }
 
-// Function to minify JavaScript files
-function compileJS(done) {
-    const srcDir = 'assets/src/js';
-    if (!fs.existsSync(srcDir)) {
-        console.log(`Source directory "${srcDir}" does not exist. Skipping task.`);
-        return done();
+export function compileJs() {
+    if (!fs.existsSync(fromTheme(paths.globalJs))) {
+        return Promise.resolve();
     }
 
-    return gulp.src(`${srcDir}/**/*.js`, { sourcemaps: true })
-        .pipe(terser())
-        .pipe(gulp.dest('assets/dist/js', { sourcemaps: '.' }))
-        .on('end', done);
+    return gulp.src(`${paths.globalJs}/**/*.js`, sourceOptions(paths.globalJs))
+        .pipe(terser({ format: { comments: /^!/ } }))
+        .pipe(gulp.dest(fromTheme('assets/dist/js'), destinationOptions()));
 }
 
-// Function to generate SCSS files from JSON configuration
-function generateScssFromJson(done) {
-    fs.readFile('porter/config/blocks.json', (err, data) => {
-        if (err) throw err;
-        const json = JSON.parse(data);
+export async function generateScssFromJson() {
+    const config = readJson('porter/config/blocks.json');
+    const styles = config?.blocks?.styles ?? {};
 
-        for (let key in json.blocks.styles) {
-            for (let styleName in json.blocks.styles[key]) {
-                let keyParts = key.split('/'); // Split the key like "core/image"
-                let blockType = _.kebabCase(keyParts[0]); // "core" or "acf"
-                let blockName = _.kebabCase(keyParts[1]); // "image", "columns", etc.
+    if (!styles || typeof styles !== 'object' || Array.isArray(styles)) {
+        throw new Error('blocks.styles must be an object in porter/config/blocks.json');
+    }
 
-                let fileName = `${blockType}_${blockName}--${_.kebabCase(styleName)}.scss`;
-                let filePath = `porter/inc/block/styles/scss/${fileName}`;
+    const destination = fromTheme(paths.blockStyles, 'scss');
+    fs.mkdirSync(destination, { recursive: true });
 
-                if (!fs.existsSync(filePath)) { // Check if file does not exist
-                    let scss = '';
-                    scss += `@import '../../../../../assets/src/scss/variables';\n\n`;
-
-                    if (blockType === 'core') {
-                        scss += `.wp-block-${blockName}.is-style-${_.kebabCase(styleName)} {\n`;
-                    } else {
-                        scss += `.wp-block-${blockType}-${blockName}.is-style-${_.kebabCase(styleName)} {\n`;
-                    }
-                    scss += `    // Add your CSS rules here\n`;
-                    scss += `}\n`;
-
-                    fs.writeFile(filePath, scss, function(err) {
-                        if (err) throw err;
-                    });
-                }
-            }
-        }
-        done();
-    });
-}
-
-// Function to read posttypes.json and create directories and SVG files
-function createPostTypes(done) {
-    fs.readFile('porter/config/posttypes.json', (err, data) => {
-        if (err) throw err;
-
-        const json = JSON.parse(data);
-        const postTypes = json.posttypes;
-
-        for (let key in postTypes) {
-            let dirPath = `porter/inc/posttypes/${key}`;
-            let svgPath = path.join(dirPath, 'icon.svg');
-
-            // Ensure directory exists or create it
-            if (!fs.existsSync(dirPath)) {
-                fs.mkdirSync(dirPath, { recursive: true });
-
-                // SVG content
-                let svgContent = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--!Font Awesome Pro 6.5.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license (Commercial License) Copyright 2024 Fonticons, Inc.--><path fill="#ffffff" d="M320 0c-17.7 0-32 14.3-32 32V51.2C215 66 160 130.6 160 208v25.4c0 45.4-15.5 89.5-43.8 124.9L101.3 377c-5.8 7.2-6.9 17.1-2.9 25.4s12.4 13.6 21.6 13.6H520c9.2 0 17.6-5.3 21.6-13.6s2.9-18.2-2.9-25.4l-14.9-18.6C495.5 322.9 480 278.8 480 233.4V208c0-77.4-55-142-128-156.8V32c0-17.7-14.3-32-32-32zm0 96c61.9 0 112 50.1 112 112v25.4c0 47.9 13.9 94.6 39.7 134.6H168.3c25.8-40 39.7-86.7 39.7-134.6V208c0-61.9 50.1-112 112-112zm64 352H320 256c0 17 6.7 33.3 18.7 45.3s28.3 18.7 45.3 18.7s33.3-6.7 45.3-18.7s18.7-28.3 18.7-45.3zM0 200c0 13.3 10.7 24 24 24h80c13.3 0 24-10.7 24-24s-10.7-24-24-24H24c-13.3 0-24 10.7-24 24zm536-24c-13.3 0-24 10.7-24 24s10.7 24 24 24h80c13.3 0 24-10.7 24-24s-10.7-24-24-24H536zM597.5 21.3c-5.9-11.9-20.3-16.7-32.2-10.7l-64 32c-11.9 5.9-16.7 20.3-10.7 32.2s20.3 16.7 32.2 10.7l64-32c11.9-5.9 16.7-20.3 10.7-32.2zM53.3 53.5l64 32c11.9 5.9 26.3 1.1 32.2-10.7s1.1-26.3-10.7-32.2l-64-32C62.9 4.6 48.5 9.4 42.5 21.3s-1.1 26.3 10.7 32.2z"/></svg>`;
-                fs.writeFileSync(svgPath, svgContent);
-            }
+    for (const [blockName, blockStyles] of Object.entries(styles)) {
+        if (!/^[a-z0-9-]+\/[a-z0-9-]+$/.test(blockName)) {
+            throw new Error(`Invalid block name in blocks.styles: ${blockName}`);
         }
 
-        done();
-    });
+        if (!blockStyles || typeof blockStyles !== 'object' || Array.isArray(blockStyles)) {
+            throw new Error(`Block styles for ${blockName} must be an object`);
+        }
+
+        const [namespace, name] = blockName.split('/');
+        const selector = namespace === 'core'
+            ? `.wp-block-${name}`
+            : `.wp-block-${namespace}-${name}`;
+
+        for (const [title, argumentsForStyle] of Object.entries(blockStyles)) {
+            if (
+                argumentsForStyle
+                && typeof argumentsForStyle === 'object'
+                && !Array.isArray(argumentsForStyle)
+                && Object.hasOwn(argumentsForStyle, 'inline_style')
+            ) {
+                continue;
+            }
+
+            const nameSlug = styleSlug(title);
+            const blockSlug = blockName.replace('/', '_');
+            const filePath = path.join(destination, `${blockSlug}--${nameSlug}.scss`);
+
+            if (!fs.existsSync(filePath)) {
+                const scss = [
+                    "@use '../../../../../assets/src/scss/variables' as *;",
+                    '',
+                    `${selector}.is-style-${nameSlug} {`,
+                    '    // Add project styles here.',
+                    '}',
+                    '',
+                ].join('\n');
+
+                fs.writeFileSync(filePath, scss, { encoding: 'utf8', flag: 'wx' });
+            }
+        }
+    }
 }
 
-// Watch for changes in specified files and trigger respective tasks
-function watchTasks() {
-    gulp.watch('theme.json', gulp.series(extractColors, compileSass, compileBlocks, compileBlockStyles, compileCoreBlockStyles, compileVariationStyles));
-    gulp.watch('assets/src/scss/**/*.scss', compileSass);
-    gulp.watch('porter/blocks/**/scss/*.scss', compileBlocks);
-    gulp.watch('porter/inc/block/styles/scss/**/*.scss', compileBlockStyles);
-    gulp.watch('porter/inc/block/core/styles/scss/**/*.scss', compileCoreBlockStyles);
-    gulp.watch('porter/inc/block/variations/**/scss/*.scss', compileVariationStyles);
-    gulp.watch('assets/src/js/**/*.js', compileJS);
-    gulp.watch('porter/config/blocks.json', generateScssFromJson);
-    gulp.watch('porter/config/posttypes.json', createPostTypes);
+export async function createPostTypes() {
+    const config = readJson('porter/config/posttypes.json');
+    const postTypes = config?.posttypes ?? {};
+
+    if (!postTypes || typeof postTypes !== 'object' || Array.isArray(postTypes)) {
+        throw new Error('posttypes must be an object in porter/config/posttypes.json');
+    }
+
+    const svg = [
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false">',
+        '    <path fill="currentColor" d="M5 3h10l4 4v14H5V3zm2 2v14h10V8h-3V5H7zm2 6h6v2H9v-2zm0 4h6v2H9v-2z"/>',
+        '</svg>',
+        '',
+    ].join('\n');
+
+    for (const postType of Object.keys(postTypes)) {
+        if (!/^[a-z0-9_-]{1,20}$/.test(postType)) {
+            throw new Error(`Invalid post type key: ${postType}`);
+        }
+
+        const directory = fromTheme('porter/inc/posttypes', postType);
+        const iconPath = path.join(directory, 'icon.svg');
+
+        fs.mkdirSync(directory, { recursive: true });
+
+        if (!fs.existsSync(iconPath)) {
+            fs.writeFileSync(iconPath, svg, { encoding: 'utf8', flag: 'wx' });
+        }
+    }
 }
 
-// Define the build task
-export const build = gulp.series(extractColors, gulp.parallel(compileSass, compileBlocks, compileBlockStyles, compileCoreBlockStyles, compileVariationStyles, compileJS));
+export async function cleanProductionArtifacts() {
+    if (!production) {
+        return;
+    }
 
-// Define the watch task
+    const generatedDirectories = [
+        fromTheme('assets/dist'),
+        fromTheme(paths.blockRoot),
+        fromTheme(paths.blockStyles, 'css'),
+        fromTheme(paths.coreBlockStyles, 'css'),
+        fromTheme(paths.blockVariations),
+    ];
+
+    for (const directory of generatedDirectories) {
+        removeMatchingFiles(directory, (filePath) => filePath.endsWith('.map'));
+    }
+
+    removeMatchingFiles(
+        fromTheme('assets/dist/css'),
+        (filePath) => /^_.*\.min\.css$/.test(path.basename(filePath)),
+    );
+}
+
+export async function clean() {
+    removeGeneratedAssets();
+}
+
+const compileAllSass = gulp.parallel(
+    compileSass,
+    compileBlocks,
+    compileBlockStyles,
+    compileCoreBlockStyles,
+    compileVariationStyles,
+);
+
+export function watchTasks() {
+    const watchers = [
+        gulp.watch('theme.json', { cwd: themeRoot }, gulp.series(extractColors, compileAllSass)),
+        gulp.watch(
+            [`${paths.globalScss}/**/*.scss`, `!${paths.globalScss}/**/_*.scss`],
+            { cwd: themeRoot },
+            compileSass,
+        ),
+        gulp.watch(`${paths.globalScss}/**/_*.scss`, { cwd: themeRoot }, compileAllSass),
+        gulp.watch(`${paths.blockRoot}/**/scss/*.scss`, { cwd: themeRoot }, compileBlocks),
+        gulp.watch(`${paths.blockStyles}/scss/**/*.scss`, { cwd: themeRoot }, compileBlockStyles),
+        gulp.watch(`${paths.coreBlockStyles}/scss/**/*.scss`, { cwd: themeRoot }, compileCoreBlockStyles),
+        gulp.watch(`${paths.blockVariations}/**/scss/*.scss`, { cwd: themeRoot }, compileVariationStyles),
+        gulp.watch(`${paths.globalJs}/**/*.js`, { cwd: themeRoot }, compileJs),
+        gulp.watch(
+            'porter/config/blocks.json',
+            { cwd: themeRoot },
+            gulp.series(generateScssFromJson, compileBlockStyles),
+        ),
+        gulp.watch('porter/config/posttypes.json', { cwd: themeRoot }, createPostTypes),
+    ];
+
+    return watchers[0];
+}
+
+export const prepare = gulp.parallel(extractColors, generateScssFromJson, createPostTypes);
+export const build = gulp.series(
+    clean,
+    prepare,
+    gulp.parallel(compileAllSass, compileJs),
+    cleanProductionArtifacts,
+);
 export const watch = gulp.series(build, watchTasks);
-
-// Set the default task to build
 export default build;

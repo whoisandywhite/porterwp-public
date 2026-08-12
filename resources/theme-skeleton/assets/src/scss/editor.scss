@@ -1,3 +1,5 @@
+@use "default";
+
 .editor-styles-wrapper {
-	@import 'default';
+    @include default.styles;
 }

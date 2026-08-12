@@ -1,15 +1,16 @@
 /*
 Theme Name: Baseline
+Theme URI: https://github.com/whoisandywhite/porterwp-public/tree/main/resources/theme-skeleton
+Description: A developer starter block theme for PorterWP projects.
 Author: whoisandywhite
 Author URI: https://whoisandywhite.com
-Theme URI: https://whoisandywhite.com
-Tags: baseline
+Tags: block-patterns, block-styles, full-site-editing, wide-blocks
 Text Domain: baseline
-Requires at least: 6.1
+Requires at least: 6.4
 Requires PHP: 8.2
-Tested up to: 6.5
-Version: 0.0.1
+Tested up to: 7.0.3
+Version: 1.0.0
 
-License: GNU General Public License v2 or later
-License URI: http://www.gnu.org/licenses/gpl-2.0.html
+License: GNU General Public License v3 or later
+License URI: https://www.gnu.org/licenses/gpl-3.0.html
 */
