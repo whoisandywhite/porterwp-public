@@ -1,2 +1,5 @@
-// Variables
-@import 'variables';
+@use "variables" as *;
+
+@mixin styles {
+    // Add shared public and editor styles here.
+}

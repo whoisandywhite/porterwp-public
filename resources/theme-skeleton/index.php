@@ -1,9 +1,14 @@
 <?php
 /**
- * This file has been left empty on purpose.
+ * Classic template fallback.
  *
- * @link https://core.trac.wordpress.org/ticket/54272
+ * The block theme renders templates from the templates directory. WordPress
+ * still expects this file when discovering and validating themes.
  *
- * @package baseline
- * @since 1.0.0
+ * @package Baseline
+ * @since   1.0.0
  */
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}

@@ -1,0 +1,8 @@
+.DS_Store
+node_modules/
+npm-debug.log*
+*.log
+*.map
+resources/theme-skeleton/assets/dist/
+resources/theme-skeleton/porter/blocks/**/css/
+resources/theme-skeleton/porter/inc/block/**/css/

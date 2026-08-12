@@ -1,13 +1,18 @@
 {
+    "$schema": "https://raw.githubusercontent.com/AdvancedCustomFields/schemas/main/json/block.json",
+    "apiVersion": 3,
     "name": "acf/dummy-name",
     "title": "Dummy_Title",
     "description": "A custom Dummy_Title block.",
-    "style": "dummy-name-block-css",
-    "script": ["dummy-name-block-js"],
+    "textdomain": "baseline",
     "category": "baseline-dummyCategory",
-    "apiVersion": 2,
     "acf": {
-        "mode": "preview",
-        "renderCallback": "porterBlockDummyNamespace\\pre_render"
+        "blockVersion": 3,
+        "renderCallback": "BaselineBlockDummyNamespace\\pre_render"
+    },
+    "supports": {
+        "anchor": true,
+        "html": false,
+        "jsx": true
     }
 }

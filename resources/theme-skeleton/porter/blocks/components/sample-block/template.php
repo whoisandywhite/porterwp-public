@@ -1,14 +1,26 @@
 <?php
 /**
- * Sample block Template
- * 
- **/
-extract( $args ); ?>
-<div <?php echo $anchor; ?> <?php echo $class; ?>>
-	<?php // Inner Blocks
-	$allowed_blocks = [];
-    $template = [];
-    $allowed_blocks_attr 	= !empty( $allowed_blocks) ? 'allowedBlocks="'.esc_attr( wp_json_encode( $allowed_blocks ) ).'"' : '';
-    $template_attr 			= !empty( $template) ? 'template="'.esc_attr( wp_json_encode( $template ) ).'"' : '';
-	echo '<InnerBlocks class="inner-content" '.$allowed_blocks_attr.' '.$template_attr.' templateLock=false />'; ?>	
-</div>
+ * Sample block template.
+ *
+ * ACF supplies the editor preview wrapper. The template adds the matching
+ * frontend wrapper so WordPress block supports are applied once in each view.
+ *
+ * @package Baseline
+ */
+
+defined( 'ABSPATH' ) || exit;
+
+$is_preview         = ! empty( $args['is_preview'] );
+$wrapper_attributes = isset( $args['wrapper_attributes'] ) && is_string( $args['wrapper_attributes'] )
+	? $args['wrapper_attributes']
+	: '';
+?>
+<?php if ( ! $is_preview ) : ?>
+	<?php // phpcs:disable WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+	<div <?php echo $wrapper_attributes; ?>>
+	<?php // phpcs:enable WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+<?php endif; ?>
+	<InnerBlocks />
+<?php if ( ! $is_preview ) : ?>
+	</div>
+<?php endif; ?>

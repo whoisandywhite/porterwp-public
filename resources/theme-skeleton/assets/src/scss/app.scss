@@ -1,1 +1,3 @@
-@import "default";
+@use "default";
+
+@include default.styles;

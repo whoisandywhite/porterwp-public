@@ -1,25 +1,12 @@
 {
-	"version" : "1.0.0",
-	"blocks" : {
-		"settings" : {
-			"folders" : [
+	"version": "1.0.0",
+	"blocks": {
+		"settings": {
+			"path": "/porter/blocks",
+			"folders": [
 				"/components"
 			]
 		},
-		"styles" : {
-			"core/image" : {
-				"Example Style" : {}
-			}
-		}
+		"styles": {}
 	}
 }
-
-
-
-
-
-
-
-
-
-

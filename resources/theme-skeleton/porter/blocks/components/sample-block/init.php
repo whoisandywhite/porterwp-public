@@ -1,52 +1,51 @@
 <?php
 /**
- * Porter Block Init functions
+ * Sample block rendering.
  *
- * @package Porter
- **/
-namespace porterBlockSampleblock;
+ * @package Baseline
+ */
 
-function helpers()
-{
-	$helpers = new class { use \Porter_Blocks_Trait; };
-	$helpers->dir = __DIR__;
-	return $helpers;
+namespace BaselineBlockSampleBlock;
+
+defined( 'ABSPATH' ) || exit;
+
+/**
+ * Return the shared PorterWP helper for this block.
+ */
+function helpers(): object {
+	static $helper = null;
+
+	if ( null === $helper ) {
+		$helper = new class() {
+			use \Porter_Blocks_Trait;
+		};
+		$helper->dir = __DIR__;
+	}
+
+	return $helper;
 }
 
 /**
- * 
- * Block Pre-render function
+ * Render the block template.
  *
- **/
-function pre_render( $block, $content, $is_preview, $post_id, $wp_block, $context)
-{
-	// Set block args
-	$attrs = [];
-	$args = [
-		'is_preview' => $is_preview,
-		'class' => get_block_wrapper_attributes( $attrs ),
-		'anchor' => helpers()->anchor( $block ),
-	];
-	
-	// Render the template
-	echo \get_template_part( helpers()->path().'/template', '', $args);
-}
+ * @param array          $block      ACF block attributes and settings.
+ * @param string         $content    Saved inner block content.
+ * @param bool           $is_preview Whether ACF is rendering an editor preview.
+ * @param int|string     $post_id    Current post ID or context identifier.
+ * @param \WP_Block|null $wp_block   Current WordPress block instance.
+ * @param array          $context    Inherited block context.
+ */
+function pre_render( $block, $content, $is_preview, $post_id, $wp_block, $context ): void {
+	$extra_attributes = array();
 
-/**
- * 
- * Register JS Scripts
- * @ref https://developer.wordpress.org/reference/hooks/enqueue_block_assets/
- *
- **/
-function register_block_script()
-{	
-	$name = helpers()->meta('name', true);
-	wp_register_script( 
-		"$name-block-js", 
-		get_theme_file_uri( str_replace( get_template_directory(), '', helpers()->dir ) . '/js/block.js' ),
-		[], 
-		wp_get_theme()->get('Version'), 
-		true 
+	if ( ! empty( $block['anchor'] ) ) {
+		$extra_attributes['id'] = $block['anchor'];
+	}
+
+	$args = array(
+		'is_preview'         => (bool) $is_preview,
+		'wrapper_attributes' => $is_preview ? '' : \get_block_wrapper_attributes( $extra_attributes ),
 	);
+
+	\get_template_part( helpers()->path() . '/template', null, $args );
 }
-// add_action( 'enqueue_block_assets', __NAMESPACE__.'\\register_block_script');

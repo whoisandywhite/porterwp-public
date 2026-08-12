@@ -1,24 +1,72 @@
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-// __dirname is not defined in ES module scope, so we need to create it
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+const scriptPath = fileURLToPath(import.meta.url);
+const scriptDirectory = path.dirname(scriptPath);
+const themeRoot = path.resolve(scriptDirectory, '../..');
 
-// Assuming theme.json is in the project root
-const themeJSONPath = path.join(__dirname, '../../theme.json');
-const themeJSON = JSON.parse(fs.readFileSync(themeJSONPath, 'utf8'));
-const colors = themeJSON.settings.color.palette;
+function readThemeJson() {
+    const filePath = path.join(themeRoot, 'theme.json');
 
-let sassMap = '$colors: (';
-colors.forEach((color, index) => {
-  sassMap += `"${color.slug}": ${color.color}`;
-  if (index < colors.length - 1) sassMap += ', ';
-});
-sassMap += ');';
+    try {
+        return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    } catch (error) {
+        throw new Error(`Could not read valid theme.json: ${error.message}`);
+    }
+}
 
-// Assuming _colors.scss should go into /assets/scss
-const sassFilePath = path.join(__dirname, '../../assets/src/scss/_colors.scss');
-fs.writeFileSync(sassFilePath, sassMap);
+export function renderColorScss(themeJson) {
+    const palette = themeJson?.settings?.color?.palette ?? [];
+
+    if (!Array.isArray(palette)) {
+        throw new Error('settings.color.palette must be an array in theme.json');
+    }
+
+    const entries = palette.map((entry, index) => {
+        if (!entry || typeof entry !== 'object') {
+            throw new Error(`Palette entry ${index + 1} must be an object`);
+        }
+
+        const { slug, color } = entry;
+
+        if (typeof slug !== 'string' || !/^[a-z0-9-]+$/.test(slug)) {
+            throw new Error(`Palette entry ${index + 1} has an invalid slug`);
+        }
+
+        if (typeof color !== 'string' || !color.trim() || /[;{}\r\n]/.test(color)) {
+            throw new Error(`Palette entry ${index + 1} has an invalid color`);
+        }
+
+        return `    ${JSON.stringify(slug)}: ${color.trim()}`;
+    });
+
+    return [
+        '$colors: (',
+        entries.join(',\n'),
+        ');',
+        '',
+    ].join('\n');
+}
+
+export function generateColorScss() {
+    const destination = path.join(themeRoot, 'assets/src/scss/_colors.scss');
+    const output = renderColorScss(readThemeJson());
+    const current = fs.existsSync(destination) ? fs.readFileSync(destination, 'utf8') : null;
+
+    if (current !== output) {
+        fs.mkdirSync(path.dirname(destination), { recursive: true });
+        fs.writeFileSync(destination, output, 'utf8');
+    }
+
+    return destination;
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === scriptPath) {
+    try {
+        generateColorScss();
+    } catch (error) {
+        console.error(error.message);
+        process.exitCode = 1;
+    }
+}

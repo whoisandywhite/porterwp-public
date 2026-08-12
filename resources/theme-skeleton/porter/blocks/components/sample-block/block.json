@@ -1,13 +1,18 @@
 {
+    "$schema": "https://raw.githubusercontent.com/AdvancedCustomFields/schemas/main/json/block.json",
+    "apiVersion": 3,
     "name": "acf/sample-block",
     "title": "Sample block",
-    "description": "A custom Sample block block.",
-    "style": "sample-block-block-css",
-    "script": ["sample-block-block-js"],
+    "description": "A custom sample block.",
+    "textdomain": "baseline",
     "category": "baseline-components",
-    "apiVersion": 2,
     "acf": {
-        "mode": "preview",
-        "renderCallback": "porterBlockSampleblock\\pre_render"
+        "blockVersion": 3,
+        "renderCallback": "BaselineBlockSampleBlock\\pre_render"
+    },
+    "supports": {
+        "anchor": true,
+        "html": false,
+        "jsx": true
     }
 }
